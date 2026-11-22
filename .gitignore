@@ -1,0 +1,4 @@
+ps4-payload-sdk/
+*.elf
+*.o
+*.a
