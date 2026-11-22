@@ -1,0 +1,48 @@
+name: Build PS4 Tor Payload
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y \
+            build-essential \
+            clang \
+            lld \
+            llvm \
+            autoconf \
+            automake \
+            libtool \
+            pkg-config \
+            cmake \
+            git \
+            wget \
+            python3
+
+      - name: Clone ps4-payload-sdk
+        run: |
+          git clone --depth 1 https://github.com/jessyclement2026/tor-ps4.git
+
+      - name: Build payload
+        run: |
+          chmod +x build.sh
+          ./build.sh
+
+      - name: Upload tor-ps4.elf artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: tor-ps4-elf
+          path: tor-ps4.elf
