@@ -4,7 +4,6 @@
 #include <string.h>
 #include <unistd.h>
 #include <grp.h>
-#include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -14,7 +13,7 @@
 #include <tor_api.h>
 
 // ============================================================================
-// PART 1: Thread-Safe Recycling Free-List Allocator (Single 256 MB VMA)
+// PART 1: Atomic-Spinlock Recycling Free-List Allocator (Single 256 MB VMA)
 // ============================================================================
 #define ARENA_SIZE (256 * 1024 * 1024)
 #define NUM_BINS   32
@@ -33,7 +32,17 @@ static uint8_t *arena_base = NULL;
 static size_t arena_offset = 0;
 static block_hdr_t *last_phys_block = NULL;
 static block_hdr_t *free_bins[NUM_BINS] = { NULL };
-static pthread_mutex_t alloc_lock = PTHREAD_MUTEX_INITIALIZER;
+static volatile int alloc_spinlock = 0;
+
+static inline void lock_alloc(void) {
+    while (__atomic_test_and_set(&alloc_spinlock, __ATOMIC_ACQUIRE)) {
+        __builtin_ia32_pause();
+    }
+}
+
+static inline void unlock_alloc(void) {
+    __atomic_clear(&alloc_spinlock, __ATOMIC_RELEASE);
+}
 
 static inline int size_to_bin(size_t size) {
     if (size <= 32) return 0;
@@ -76,18 +85,17 @@ static inline block_hdr_t *next_phys_block(block_hdr_t *blk) {
     if (next_addr >= arena_base + arena_offset) return NULL;
     return (block_hdr_t *)next_addr;
 }
-
-void *malloc(size_t size) {
+// ============================================================================
+// PART 2: Standard Allocator Functions (Thread-Safe & Coalescing)
+// ============================================================================
+static void *malloc_unlocked(size_t size) {
     if (size == 0) size = 16;
     size = (size + 15) & ~((size_t)15);
-
-    pthread_mutex_lock(&alloc_lock);
 
     if (!arena_base) {
         arena_base = mmap(NULL, ARENA_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
         if (arena_base == MAP_FAILED) {
             arena_base = NULL;
-            pthread_mutex_unlock(&alloc_lock);
             return NULL;
         }
     }
@@ -116,7 +124,6 @@ void *malloc(size_t size) {
                 }
 
                 curr->magic = BLOCK_MAGIC_USED;
-                pthread_mutex_unlock(&alloc_lock);
                 return (void *)(curr + 1);
             }
             curr = curr->next_free;
@@ -133,25 +140,17 @@ void *malloc(size_t size) {
         blk->next_free = NULL;
         blk->prev_free = NULL;
         last_phys_block = blk;
-
-        pthread_mutex_unlock(&alloc_lock);
         return (void *)(blk + 1);
     }
 
-    pthread_mutex_unlock(&alloc_lock);
     return NULL;
 }
 
-void free(void *ptr) {
+static void free_unlocked(void *ptr) {
     if (!ptr) return;
 
-    pthread_mutex_lock(&alloc_lock);
-
     block_hdr_t *blk = ((block_hdr_t *)ptr) - 1;
-    if (blk->magic != BLOCK_MAGIC_USED) {
-        pthread_mutex_unlock(&alloc_lock);
-        return;
-    }
+    if (blk->magic != BLOCK_MAGIC_USED) return;
 
     block_hdr_t *next = next_phys_block(blk);
     if (next && next->magic == BLOCK_MAGIC_FREE) {
@@ -179,13 +178,28 @@ void free(void *ptr) {
     }
 
     bin_insert(blk);
-    pthread_mutex_unlock(&alloc_lock);
+}
+
+void *malloc(size_t size) {
+    lock_alloc();
+    void *ptr = malloc_unlocked(size);
+    unlock_alloc();
+    return ptr;
+}
+
+void free(void *ptr) {
+    if (!ptr) return;
+    lock_alloc();
+    free_unlocked(ptr);
+    unlock_alloc();
 }
 
 void *calloc(size_t nmemb, size_t size) {
     if (nmemb != 0 && size > SIZE_MAX / nmemb) return NULL;
     size_t total = nmemb * size;
-    void *ptr = malloc(total);
+    lock_alloc();
+    void *ptr = malloc_unlocked(total);
+    unlock_alloc();
     if (ptr) memset(ptr, 0, total);
     return ptr;
 }
@@ -197,25 +211,37 @@ void *realloc(void *ptr, size_t size) {
         return NULL;
     }
 
+    lock_alloc();
     block_hdr_t *blk = ((block_hdr_t *)ptr) - 1;
-    if (blk->magic != BLOCK_MAGIC_USED) return malloc(size);
-    if (blk->size >= size) return ptr;
+    if (blk->magic != BLOCK_MAGIC_USED) {
+        void *p = malloc_unlocked(size);
+        unlock_alloc();
+        return p;
+    }
+    if (blk->size >= size) {
+        unlock_alloc();
+        return ptr;
+    }
 
-    void *new_ptr = malloc(size);
-    if (!new_ptr) return NULL;
+    void *new_ptr = malloc_unlocked(size);
+    if (!new_ptr) {
+        unlock_alloc();
+        return NULL;
+    }
     memcpy(new_ptr, ptr, blk->size);
-    free(ptr);
+    free_unlocked(ptr);
+    unlock_alloc();
     return new_ptr;
 }
 // ============================================================================
-// PART 2: PS4 Stubs, Notifications & Tor Daemon Control
+// PART 3: PS4 Stubs, Notifications & Tor Daemon Control
 // ============================================================================
 struct group *getgrgid(gid_t gid) { (void)gid; return NULL; }
 int setgid(gid_t gid) { (void)gid; return 0; }
 
 typedef struct {
-    char useless1[45];
-    char message[1024];
+    char useless1;
+    char message;
 } notify_request_t;
 
 int sceKernelSendNotificationRequest(int device, notify_request_t *req, size_t size, int blocking);
