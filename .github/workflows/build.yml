@@ -38,8 +38,8 @@ jobs:
 
       - name: Download ps4-payload-sdk
         run: |
-          wget wget https://github.com/ps4-payload-dev/sdk/releases/latest/download/ps4-payload-sdk.zip
-          unzip -q ps4-payload-sdk.zip
+          wget -q https://github.com/ps4-payload-dev/sdk/releases/latest/download/ps4-payload-sdk.zip
+          unzip -oq ps4-payload-sdk.zip
 
       - name: Build payload
         env:
