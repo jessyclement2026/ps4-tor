@@ -70,6 +70,16 @@ chmod +x build.sh
 ```
 This compiles `zlib`, `OpenSSL`, `libevent`, `libtor.a`, and outputs `tor-ps4.elf`.
 
+### Hosting an `.onion` Hidden Service (Optional)
+`tor-ps4` supports hosting Tor v3 `.onion` hidden services directly from your PS4:
+1. Open **`/data/tor/torrc`** via FTP (port `2121`) and uncomment the two `HiddenService` lines at the bottom of the file (use any free local port starting from **`8081`**, since port `8080` is reserved for `webtor-ps4`):
+   ```text
+   HiddenServiceDir /data/tor/data/hidden_service/
+   HiddenServicePort 80 127.0.0.1:8081
+   ```
+2. Point your local PS4 web server payload to listen on `127.0.0.1:8081`.
+3. Restart `tor-ps4.elf` and retrieve your generated `.onion` address via FTP from **`/data/tor/data/hidden_service/hostname`**.
+
 ## Third-Party Libraries
 Pre-compiled releases statically link:
 - **Tor (`libtor`)** (BSD 3-Clause License)
@@ -85,3 +95,5 @@ This project is licensed under the **BSD 3-Clause License** — see the [LICENSE
 
 ## Brewology Verification
 Official releases for this project are also published on the Brewology PS4 Homebrew Store by **`cutiefly`**.
+
+*Disclaimer: This software is an independent, open-source community project developed using the open-source `ps4-payload-sdk` and is not affiliated with or endorsed by The Tor Project or Sony Interactive Entertainment. It is provided "as is", without warranty of any kind, strictly for lawful privacy, educational, and research purposes. Users are solely responsible for complying with their local laws when using this software.*
