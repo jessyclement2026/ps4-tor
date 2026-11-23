@@ -8,8 +8,8 @@ export SRCDIR="$WORKDIR/src"
 
 if [ ! -f "$PS4_PAYLOAD_SDK/toolchain/orbis.mk" ]; then
   echo "Cloning ps4-payload-sdk into $PS4_PAYLOAD_SDK..."
-  wget https://github.com/ps4-payload-dev/sdk/releases/latest/download/ps4-payload-sdk.zip
-  unzip ps4-payload-sdk.zip
+  wget -q https://github.com/ps4-payload-dev/sdk/releases/latest/download/ps4-payload-sdk.zip
+  unzip -oq ps4-payload-sdk.zip
 fi
 
 mkdir -p "$SRCDIR"

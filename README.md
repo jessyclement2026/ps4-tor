@@ -28,7 +28,7 @@ A standalone native C-Tor background daemon payload (`.elf`) for jailbroken Play
   - **Address:** `127.0.0.1`
   - **Port:** `8118`
 
-  > **Note on PS4 Browser Limitations:** The built-in PS4 web browser lacks modern SSL/TLS support and blocks `.onion` domains, even when tunneled through port `8118`. To browse `.onion` sites on the PS4 browser, we are working on a dedicated companion web proxy payload: **[webtor-ps4](https://github.com)** *(WIP)*.
+  > **Note on PS4 Browser Limitations:** The built-in PS4 web browser lacks modern SSL/TLS support and blocks `.onion` domains, even when tunneled through port `8118`. To browse `.onion` sites on the PS4 browser, we are working on a dedicated companion web proxy payload: **[webtor-ps4](https://github.com/jessyclement2026/webtor-ps4)** *(WIP)*.
 
 ## Building from Source
 
@@ -61,7 +61,7 @@ A standalone native C-Tor background daemon payload (`.elf`) for jailbroken Play
 
 ### 2. Download `ps4-payload-sdk` & Build Payload
 ```bash
-wget https://github.com
+wget https://github.com/jessyclement2026/webtor-ps4/ps4-payload-dev/sdk/releases/latest/download/ps4-payload-sdk.zip
 unzip ps4-payload-sdk.zip
 export PS4SDK=\$PWD/ps4-payload-sdk
 
@@ -69,6 +69,13 @@ chmod +x build.sh
 ./build.sh
 ```
 This compiles `zlib`, `OpenSSL`, `libevent`, `libtor.a`, and outputs `tor-ps4.elf`.
+
+## Third-Party Libraries
+Pre-compiled releases statically link:
+- **Tor (`libtor`)** (BSD 3-Clause License)
+- **OpenSSL** (Apache License 2.0)
+- **libevent** (BSD 3-Clause License)
+- **zlib** (zlib License)
 
 ## License & Disclaimer
 This project is licensed under the **BSD 3-Clause License** — see the [LICENSE](LICENSE) file for details.  
