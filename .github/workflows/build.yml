@@ -62,5 +62,24 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
+          name: PS4 Tor Daemon Payload ${{ github.ref_name }} (tor-ps4.elf)
           files: tor-ps4.elf
           generate_release_notes: true
+          body: |
+            ## Native C-Tor Background Daemon for Jailbroken PS4 (`tor-ps4.elf`)
+
+            A standalone native C-Tor background daemon payload compiled for Orbis OS (`x86_64-pc-freebsd9`) to provide local SOCKS5 and HTTP Tunnel proxies.
+
+            ### Key Features
+            - **Pre-compiled Payload:** Statically linked with native C-Tor, OpenSSL, libevent, and zlib.
+            - **Proxies:** SOCKS5 (`127.0.0.1:9050`) for Easy network setup and HTTP Tunnel (`127.0.0.1:8118`) for Custom network proxy settings.
+            - **Config & Memory:** Auto-generates settings in `/data/tor/torrc` and uses a custom `mmap`-backed allocator to bypass GoldHEN heap limits.
+
+            ### Quick Start
+            1. **Upload:** Copy `tor-ps4.elf` via GoldHEN FTP (port `2121`) to `/data/payloads/tor-ps4.elf`.
+            2. **Launch:** Run `tor-ps4.elf` from GoldHEN PayLoader / LaunchPad.
+            3. **Verify:** Wait ~15–20 seconds for bootstrap (`Bootstrapped 100%`), viewable via FTP at `/data/tor/tor.log`.
+
+            ### Companion Browser & Safety Warning
+            - **`.onion` Browsing:** Stock PS4 browser blocks `.onion` domains over port `8118`; use **[webtor-ps4](https://github.com/jessyclement2026/webtor-ps4)** for `.onion` and modern HTTPS support.
+            - **⚠️ Warning:** Disable **System Software Updates** in **PS4 Settings → System → Automatic Downloads** to prevent accidental firmware upgrades.

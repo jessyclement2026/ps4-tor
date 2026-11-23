@@ -1,0 +1,16 @@
+#libevent pkg-config source file
+
+prefix=/home/rob/Work/Coding/ps4tor/ps4-payload-sdk/target
+exec_prefix=${prefix}
+libdir=${exec_prefix}/lib
+includedir=${prefix}/include
+
+Name: libevent_core
+Description: libevent_core
+Version: 2.1.13-stable
+Requires:
+Conflicts:
+Libs: -L${libdir} -levent_core
+Libs.private: 
+Cflags: -I${includedir}
+
