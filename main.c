@@ -121,6 +121,10 @@ static void ensure_tor_config(void) {
             "MapAddress playstation.net 0.0.0.0\n"
             "MapAddress *.psndl.net 0.0.0.0\n"
             "MapAddress psndl.net 0.0.0.0\n"
+            "# Uncomment the lines below to host a .onion hidden service on your PS4\n"
+            "# Use any available local port starting from 8080\n"
+            "# HiddenServiceDir /data/tor/data/hidden_service/\n"
+            "# HiddenServicePort 80 127.0.0.1:8080\n"
         );
         fclose(f);
     }
