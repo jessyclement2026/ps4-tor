@@ -80,3 +80,5 @@ Pre-compiled releases statically link:
 ## License & Disclaimer
 This project is licensed under the **BSD 3-Clause License** — see the [LICENSE](LICENSE) file for details.  
 *Note: This is an unofficial community port and is not affiliated with or endorsed by The Tor Project.*
+
+> **⚠️ Warning:** Make sure **System Software Updates** are disabled in **PS4 Settings → System → Automatic Downloads** before going online so you do not accidentally upgrade your firmware and lose your jailbreak.
