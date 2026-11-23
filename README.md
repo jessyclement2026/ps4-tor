@@ -28,22 +28,43 @@ A standalone native C-Tor background daemon payload (`.elf`) for jailbroken Play
   - **Address:** `127.0.0.1`
   - **Port:** `8118`
 
-  > **Note on PS4 Browser Limitations:** The built-in PS4 web browser lacks modern SSL/TLS support and blocks `.onion` domains, even when tunneled through port `8118`. To browse .onion` sites on the PS4 browser, we are working on a dedicated companion web proxy payload: **[webtor-ps4](https://github.com)** *(WIP)*.
+  > **Note on PS4 Browser Limitations:** The built-in PS4 web browser lacks modern SSL/TLS support and blocks `.onion` domains, even when tunneled through port `8118`. To browse `.onion` sites on the PS4 browser, we are working on a dedicated companion web proxy payload: **[webtor-ps4](https://github.com)** *(WIP)*.
 
-## Building from Source (Linux)
+## Building from Source
 
-### 1. Install Build Tools
+### 1. Install Build Tools & SDK Dependencies
+
 - **Arch / CachyOS:**
   ```bash
   sudo pacman -S --needed base-devel clang lld llvm cmake autoconf automake libtool pkgconf git wget python
   ```
-- **Ubuntu / Debian:**
+
+- **Debian / Ubuntu:**
   ```bash
-  sudo apt install -y build-essential clang lld llvm autoconf automake libtool pkg-config cmake git wget python3
+  sudo apt-get update && sudo apt-get upgrade # optional
+  sudo apt-get install -y bash clang-18 lld-18 build-essential autoconf automake libtool git wget python3 # required
+  sudo apt-get install -y socat cmake meson pkg-config # optional / build tools
   ```
 
-### 2. Build Dependencies & Payload
+- **Fedora (tested on Fedora 41):**
+  ```bash
+  sudo dnf install -y bash llvm-devel clang lld autoconf automake libtool git wget python3 # required
+  sudo dnf install -y socat cmake meson pkg-config # optional / build tools
+  ```
+
+- **macOS (tested on macOS Sequoia via Homebrew):**
+  ```bash
+  brew install llvm@18 autoconf automake libtool wget # required
+  export LLVM_CONFIG=/opt/homebrew/opt/llvm@18/bin/llvm-config # required
+  brew install socat cmake meson pkg-config # optional / build tools
+  ```
+
+### 2. Download `ps4-payload-sdk` & Build Payload
 ```bash
+wget https://github.com
+unzip ps4-payload-sdk.zip
+export PS4SDK=\$PWD/ps4-payload-sdk
+
 chmod +x build.sh
 ./build.sh
 ```
