@@ -6,8 +6,9 @@ A standalone native C-Tor background daemon payload (`.elf`) for jailbroken Play
 - Native C-Tor compiled with OpenSSL, libevent, and zlib for Orbis OS (`x86_64-pc-freebsd9`).
 - **SOCKS5 Proxy:** `127.0.0.1:9050` (for homebrew apps / `libcurl` with `socks5h://` — works automatically without manual proxy configuration).
 - **HTTP Tunnel Proxy:** `127.0.0.1:8118` (for tunneling PS4 System Network traffic via Proxy settings).
+- **Built-in Tor DNS & Sony Server Blocker:** `127.0.0.1:53` with `.onion` automapping (`127.192.0.0/10`) and automatic blocking of Sony/PSN update and telemetry domains. To prevent DNS leaks and keep Sony servers blocked when using the system proxy, set your PS4 network to **Custom** with both **Primary DNS** and **Secondary DNS** set to `127.0.0.1` (and Proxy Server set to `127.0.0.1`, Port `8118`).
 - Auto-generates `/data/tor/torrc` on first run while preserving custom edits.
-- Custom `mmap`-backed memory allocator to bypass GoldHEN's static heap limit.
+- Thread-safe recycling free-list memory allocator inside a single `mmap` VMA to bypass GoldHEN's static heap limit and prevent out-of-memory crashes.
 
 ## Usage on PS4
 1. Enable **FTP Server** in **GoldHEN → Settings → Server Settings** (port `2121`).
