@@ -13,61 +13,177 @@
 #include <arpa/inet.h>
 #include <tor_api.h>
 
-// Custom 512 MB thread-safe arena + mmap fallback allocator to prevent PS4 VMA & arena exhaustion
-#define ARENA_SIZE (512 * 1024 * 1024)
+// ============================================================================
+// PART 1: Thread-Safe Recycling Free-List Allocator (Single 256 MB VMA)
+// ============================================================================
+#define ARENA_SIZE (256 * 1024 * 1024)
+#define NUM_BINS   32
+#define BLOCK_MAGIC_USED 0x544F525553454421ULL
+#define BLOCK_MAGIC_FREE 0x544F524652454521ULL
+
+typedef struct block_hdr {
+    size_t size;                 // Payload size (16-byte aligned)
+    size_t magic;                // USED or FREE magic
+    struct block_hdr *prev_phys; // Previous adjacent block in memory
+    struct block_hdr *next_free; // Next free block in bin
+    struct block_hdr *prev_free; // Prev free block in bin
+} block_hdr_t;
+
 static uint8_t *arena_base = NULL;
 static size_t arena_offset = 0;
+static block_hdr_t *last_phys_block = NULL;
+static block_hdr_t *free_bins[NUM_BINS] = { NULL };
 static pthread_mutex_t alloc_lock = PTHREAD_MUTEX_INITIALIZER;
 
-typedef struct {
-    size_t size;
-    size_t magic;
-} alloc_hdr_t;
+static inline int size_to_bin(size_t size) {
+    if (size <= 32) return 0;
+    int bin = 0;
+    size_t s = (size - 1) >> 5;
+    while (s > 0 && bin < NUM_BINS - 1) {
+        s >>= 1;
+        bin++;
+    }
+    return bin;
+}
 
-#define ALLOC_ARENA_MAGIC 0x544F524152454E41ULL
-#define ALLOC_MMAP_MAGIC  0x544F524D454D4F52ULL
+static inline void bin_insert(block_hdr_t *blk) {
+    int bin = size_to_bin(blk->size);
+    blk->magic = BLOCK_MAGIC_FREE;
+    blk->prev_free = NULL;
+    blk->next_free = free_bins[bin];
+    if (free_bins[bin]) {
+        free_bins[bin]->prev_free = blk;
+    }
+    free_bins[bin] = blk;
+}
+
+static inline void bin_remove(block_hdr_t *blk) {
+    int bin = size_to_bin(blk->size);
+    if (blk->prev_free) {
+        blk->prev_free->next_free = blk->next_free;
+    } else {
+        free_bins[bin] = blk->next_free;
+    }
+    if (blk->next_free) {
+        blk->next_free->prev_free = blk->prev_free;
+    }
+    blk->prev_free = NULL;
+    blk->next_free = NULL;
+}
+
+static inline block_hdr_t *next_phys_block(block_hdr_t *blk) {
+    uint8_t *next_addr = (uint8_t *)(blk + 1) + blk->size;
+    if (next_addr >= arena_base + arena_offset) return NULL;
+    return (block_hdr_t *)next_addr;
+}
 
 void *malloc(size_t size) {
-    if (size == 0) size = 1;
+    if (size == 0) size = 16;
     size = (size + 15) & ~((size_t)15);
-    size_t total = size + sizeof(alloc_hdr_t);
 
     pthread_mutex_lock(&alloc_lock);
 
     if (!arena_base) {
         arena_base = mmap(NULL, ARENA_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+        if (arena_base == MAP_FAILED) {
+            arena_base = NULL;
+            pthread_mutex_unlock(&alloc_lock);
+            return NULL;
+        }
     }
 
-    if (arena_base != MAP_FAILED && (arena_offset + total) <= ARENA_SIZE) {
-        alloc_hdr_t *hdr = (alloc_hdr_t *)(arena_base + arena_offset);
+    int start_bin = size_to_bin(size);
+    for (int b = start_bin; b < NUM_BINS; b++) {
+        block_hdr_t *curr = free_bins[b];
+        while (curr) {
+            if (curr->size >= size) {
+                bin_remove(curr);
+
+                size_t min_split = sizeof(block_hdr_t) + 32;
+                if (curr->size >= size + min_split) {
+                    block_hdr_t *rem = (block_hdr_t *)((uint8_t *)(curr + 1) + size);
+                    rem->size = curr->size - size - sizeof(block_hdr_t);
+                    rem->prev_phys = curr;
+                    curr->size = size;
+
+                    block_hdr_t *after = next_phys_block(rem);
+                    if (after) {
+                        after->prev_phys = rem;
+                    } else {
+                        last_phys_block = rem;
+                    }
+                    bin_insert(rem);
+                }
+
+                curr->magic = BLOCK_MAGIC_USED;
+                pthread_mutex_unlock(&alloc_lock);
+                return (void *)(curr + 1);
+            }
+            curr = curr->next_free;
+        }
+    }
+
+    size_t total = sizeof(block_hdr_t) + size;
+    if (arena_offset + total <= ARENA_SIZE) {
+        block_hdr_t *blk = (block_hdr_t *)(arena_base + arena_offset);
         arena_offset += total;
-        hdr->size = size;
-        hdr->magic = ALLOC_ARENA_MAGIC;
+        blk->size = size;
+        blk->magic = BLOCK_MAGIC_USED;
+        blk->prev_phys = last_phys_block;
+        blk->next_free = NULL;
+        blk->prev_free = NULL;
+        last_phys_block = blk;
+
         pthread_mutex_unlock(&alloc_lock);
-        return (void *)(hdr + 1);
+        return (void *)(blk + 1);
     }
 
     pthread_mutex_unlock(&alloc_lock);
-
-    alloc_hdr_t *hdr = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
-    if (hdr == MAP_FAILED) return NULL;
-    hdr->size = size;
-    hdr->magic = ALLOC_MMAP_MAGIC;
-    return (void *)(hdr + 1);
+    return NULL;
 }
 
 void free(void *ptr) {
     if (!ptr) return;
-    alloc_hdr_t *hdr = ((alloc_hdr_t *)ptr) - 1;
-    if (hdr->magic == ALLOC_MMAP_MAGIC) {
-        hdr->magic = 0;
-        munmap(hdr, hdr->size + sizeof(alloc_hdr_t));
-    } else if (hdr->magic == ALLOC_ARENA_MAGIC) {
-        hdr->magic = 0;
+
+    pthread_mutex_lock(&alloc_lock);
+
+    block_hdr_t *blk = ((block_hdr_t *)ptr) - 1;
+    if (blk->magic != BLOCK_MAGIC_USED) {
+        pthread_mutex_unlock(&alloc_lock);
+        return;
     }
+
+    block_hdr_t *next = next_phys_block(blk);
+    if (next && next->magic == BLOCK_MAGIC_FREE) {
+        bin_remove(next);
+        blk->size += sizeof(block_hdr_t) + next->size;
+        block_hdr_t *after = next_phys_block(blk);
+        if (after) {
+            after->prev_phys = blk;
+        } else {
+            last_phys_block = blk;
+        }
+    }
+
+    block_hdr_t *prev = blk->prev_phys;
+    if (prev && prev->magic == BLOCK_MAGIC_FREE) {
+        bin_remove(prev);
+        prev->size += sizeof(block_hdr_t) + blk->size;
+        block_hdr_t *after = next_phys_block(prev);
+        if (after) {
+            after->prev_phys = prev;
+        } else {
+            last_phys_block = prev;
+        }
+        blk = prev;
+    }
+
+    bin_insert(blk);
+    pthread_mutex_unlock(&alloc_lock);
 }
 
 void *calloc(size_t nmemb, size_t size) {
+    if (nmemb != 0 && size > SIZE_MAX / nmemb) return NULL;
     size_t total = nmemb * size;
     void *ptr = malloc(total);
     if (ptr) memset(ptr, 0, total);
@@ -76,22 +192,27 @@ void *calloc(size_t nmemb, size_t size) {
 
 void *realloc(void *ptr, size_t size) {
     if (!ptr) return malloc(size);
-    if (size == 0) { free(ptr); return NULL; }
-    alloc_hdr_t *hdr = ((alloc_hdr_t *)ptr) - 1;
-    if (hdr->magic != ALLOC_ARENA_MAGIC && hdr->magic != ALLOC_MMAP_MAGIC) return malloc(size);
-    if (hdr->size >= size) return ptr;
+    if (size == 0) {
+        free(ptr);
+        return NULL;
+    }
+
+    block_hdr_t *blk = ((block_hdr_t *)ptr) - 1;
+    if (blk->magic != BLOCK_MAGIC_USED) return malloc(size);
+    if (blk->size >= size) return ptr;
+
     void *new_ptr = malloc(size);
     if (!new_ptr) return NULL;
-    memcpy(new_ptr, ptr, hdr->size);
+    memcpy(new_ptr, ptr, blk->size);
     free(ptr);
     return new_ptr;
 }
-
-// Stubs for Unix group functions missing from PS4 libc
+// ============================================================================
+// PART 2: PS4 Stubs, Notifications & Tor Daemon Control
+// ============================================================================
 struct group *getgrgid(gid_t gid) { (void)gid; return NULL; }
 int setgid(gid_t gid) { (void)gid; return 0; }
 
-// PS4 system notification structure
 typedef struct {
     char useless1[45];
     char message[1024];
