@@ -63,4 +63,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           files: tor-ps4.elf
-          generate_release_notes:
+          generate_release_notes: true
