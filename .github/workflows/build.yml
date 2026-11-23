@@ -2,11 +2,14 @@ name: Build PS4 Tor Payload
 
 on:
   push:
-    branches: [ main ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ main ]
   workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   build:
@@ -68,17 +71,18 @@ jobs:
           body: |
             ## Native C-Tor Background Daemon for Jailbroken PS4 (`tor-ps4.elf`)
 
-            A standalone native C-Tor background daemon payload compiled for Orbis OS (`x86_64-pc-freebsd9`) to provide local SOCKS5 and HTTP Tunnel proxies.
+            A standalone native C-Tor background daemon payload compiled for Orbis OS (`x86_64-pc-freebsd9`) to provide local SOCKS5, HTTP Tunnel, and Tor DNS proxies.
 
             ### Key Features
             - **Pre-compiled Payload:** Statically linked with native C-Tor, OpenSSL, libevent, and zlib.
-            - **Proxies:** SOCKS5 (`127.0.0.1:9050`) for Easy network setup and HTTP Tunnel (`127.0.0.1:8118`) for Custom network proxy settings.
-            - **Config & Memory:** Auto-generates settings in `/data/tor/torrc` and uses a custom `mmap`-backed allocator to bypass GoldHEN heap limits.
+            - **Proxies & Tor DNS:** SOCKS5 (`127.0.0.1:9050`), HTTP Tunnel (`127.0.0.1:8118`), and built-in Tor DNS (`127.0.0.1:53`) with `.onion` automapping (`127.192.0.0/10`) and automatic Sony/PSN server blocking. To prevent DNS leaks and keep Sony servers blocked, users **must** use **Custom** network setup with both **Primary DNS** and **Secondary DNS** set to `127.0.0.1` (and Proxy Server set to `127.0.0.1`, Port `8118`).
+            - **Config & Memory:** Auto-generates settings in `/data/tor/torrc` and uses a thread-safe recycling free-list allocator inside a single `mmap` VMA to prevent OOM crashes.
 
             ### Quick Start
             1. **Upload:** Copy `tor-ps4.elf` via GoldHEN FTP (port `2121`) to `/data/payloads/tor-ps4.elf`.
             2. **Launch:** Run `tor-ps4.elf` from GoldHEN PayLoader / LaunchPad.
-            3. **Verify:** Wait ~15–20 seconds for bootstrap (`Bootstrapped 100%`), viewable via FTP at `/data/tor/tor.log`.
+            3. **PS4 Network Setup (Optional System Proxy):** Choose **Custom** → DNS Manual (`127.0.0.1` / `127.0.0.1`) → Proxy Server Use (`127.0.0.1`, Port `8118`).
+            4. **Verify:** Wait ~15–20 seconds for bootstrap (`Bootstrapped 100%`), viewable via FTP at `/data/tor/tor.log`.
 
             ### Companion Browser & Safety Warning
             - **`.onion` Browsing:** Stock PS4 browser blocks `.onion` domains over port `8118`; use **[webtor-ps4](https://github.com/jessyclement2026/webtor-ps4)** for `.onion` and modern HTTPS support.
