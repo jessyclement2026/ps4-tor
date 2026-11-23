@@ -86,7 +86,7 @@ static inline block_hdr_t *next_phys_block(block_hdr_t *blk) {
     return (block_hdr_t *)next_addr;
 }
 // ============================================================================
-// PART 2: Standard Allocator Functions (Thread-Safe & Coalescing)
+// PART 2: Internal Allocator & Physical Block Coalescing
 // ============================================================================
 static void *malloc_unlocked(size_t size) {
     if (size == 0) size = 16;
@@ -179,7 +179,9 @@ static void free_unlocked(void *ptr) {
 
     bin_insert(blk);
 }
-
+// ============================================================================
+// PART 3: Public Allocator Wrappers & PS4 Notification Helpers
+// ============================================================================
 void *malloc(size_t size) {
     lock_alloc();
     void *ptr = malloc_unlocked(size);
@@ -233,15 +235,13 @@ void *realloc(void *ptr, size_t size) {
     unlock_alloc();
     return new_ptr;
 }
-// ============================================================================
-// PART 3: PS4 Stubs, Notifications & Tor Daemon Control
-// ============================================================================
+
 struct group *getgrgid(gid_t gid) { (void)gid; return NULL; }
 int setgid(gid_t gid) { (void)gid; return 0; }
 
 typedef struct {
-    char useless1;
-    char message;
+    char useless1[45];
+    char message[1024];
 } notify_request_t;
 
 int sceKernelSendNotificationRequest(int device, notify_request_t *req, size_t size, int blocking);
@@ -252,7 +252,9 @@ static void ps4_notify(const char *msg) {
     strncpy(req.message, msg, sizeof(req.message) - 1);
     sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
 }
-
+// ============================================================================
+// PART 4: Tor Process Control, Default torrc & Entry Point
+// ============================================================================
 static int is_tor_running(void) {
     int sock = socket(AF_INET, SOCK_STREAM, 0);
     if (sock < 0) return 0;
