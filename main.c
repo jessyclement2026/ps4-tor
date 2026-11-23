@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include <stdlib.h>
+#include <stdint.h>
 #include <string.h>
 #include <unistd.h>
 #include <grp.h>
@@ -11,30 +12,51 @@
 #include <arpa/inet.h>
 #include <tor_api.h>
 
-// Custom mmap-backed allocator to bypass GoldHEN BinLoader's small static heap
+// Custom 128 MB arena + mmap fallback allocator to prevent PS4 VMA exhaustion
+#define ARENA_SIZE (128 * 1024 * 1024)
+static uint8_t *arena_base = NULL;
+static size_t arena_offset = 0;
+
 typedef struct {
     size_t size;
     size_t magic;
 } alloc_hdr_t;
 
-#define ALLOC_MAGIC 0x544F524D454D4F52ULL
+#define ALLOC_ARENA_MAGIC 0x544F524152454E41ULL
+#define ALLOC_MMAP_MAGIC  0x544F524D454D4F52ULL
 
 void *malloc(size_t size) {
     if (size == 0) size = 1;
+    size = (size + 15) & ~((size_t)15);
     size_t total = size + sizeof(alloc_hdr_t);
+
+    if (!arena_base) {
+        arena_base = mmap(NULL, ARENA_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
+    }
+
+    if (arena_base != MAP_FAILED && (arena_offset + total) <= ARENA_SIZE) {
+        alloc_hdr_t *hdr = (alloc_hdr_t *)(arena_base + arena_offset);
+        arena_offset += total;
+        hdr->size = size;
+        hdr->magic = ALLOC_ARENA_MAGIC;
+        return (void *)(hdr + 1);
+    }
+
     alloc_hdr_t *hdr = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (hdr == MAP_FAILED) return NULL;
     hdr->size = size;
-    hdr->magic = ALLOC_MAGIC;
+    hdr->magic = ALLOC_MMAP_MAGIC;
     return (void *)(hdr + 1);
 }
 
 void free(void *ptr) {
     if (!ptr) return;
     alloc_hdr_t *hdr = ((alloc_hdr_t *)ptr) - 1;
-    if (hdr->magic == ALLOC_MAGIC) {
+    if (hdr->magic == ALLOC_MMAP_MAGIC) {
         hdr->magic = 0;
         munmap(hdr, hdr->size + sizeof(alloc_hdr_t));
+    } else if (hdr->magic == ALLOC_ARENA_MAGIC) {
+        hdr->magic = 0;
     }
 }
 
@@ -49,7 +71,7 @@ void *realloc(void *ptr, size_t size) {
     if (!ptr) return malloc(size);
     if (size == 0) { free(ptr); return NULL; }
     alloc_hdr_t *hdr = ((alloc_hdr_t *)ptr) - 1;
-    if (hdr->magic != ALLOC_MAGIC) return malloc(size);
+    if (hdr->magic != ALLOC_ARENA_MAGIC && hdr->magic != ALLOC_MMAP_MAGIC) return malloc(size);
     if (hdr->size >= size) return ptr;
     void *new_ptr = malloc(size);
     if (!new_ptr) return NULL;
@@ -106,6 +128,8 @@ static void ensure_tor_config(void) {
             "DataDirectory /data/tor/data\n"
             "SocksPort 127.0.0.1:9050\n"
             "HTTPTunnelPort 127.0.0.1:8118\n"
+            "MaxMemInQueues 32 MB\n"
+            "ConfluxEnabled 0\n"
             "AvoidDiskWrites 1\n"
             "Log notice file /data/tor/tor.log\n"
         );
