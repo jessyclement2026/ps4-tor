@@ -1,4 +1,4 @@
-export PS4_PAYLOAD_SDK ?= /home/rob/Work/Coding/ps4tor/ps4-payload-sdk
+export PS4_PAYLOAD_SDK ?= ps4-payload-sdk
 include $(PS4_PAYLOAD_SDK)/toolchain/orbis.mk
 
 ELF := tor-ps4.elf
