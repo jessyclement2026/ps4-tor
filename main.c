@@ -4,6 +4,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <grp.h>
+#include <pthread.h>
 #include <sys/types.h>
 #include <sys/stat.h>
 #include <sys/mman.h>
@@ -12,10 +13,11 @@
 #include <arpa/inet.h>
 #include <tor_api.h>
 
-// Custom 128 MB arena + mmap fallback allocator to prevent PS4 VMA exhaustion
-#define ARENA_SIZE (128 * 1024 * 1024)
+// Custom 512 MB thread-safe arena + mmap fallback allocator to prevent PS4 VMA & arena exhaustion
+#define ARENA_SIZE (512 * 1024 * 1024)
 static uint8_t *arena_base = NULL;
 static size_t arena_offset = 0;
+static pthread_mutex_t alloc_lock = PTHREAD_MUTEX_INITIALIZER;
 
 typedef struct {
     size_t size;
@@ -30,6 +32,8 @@ void *malloc(size_t size) {
     size = (size + 15) & ~((size_t)15);
     size_t total = size + sizeof(alloc_hdr_t);
 
+    pthread_mutex_lock(&alloc_lock);
+
     if (!arena_base) {
         arena_base = mmap(NULL, ARENA_SIZE, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     }
@@ -39,8 +43,11 @@ void *malloc(size_t size) {
         arena_offset += total;
         hdr->size = size;
         hdr->magic = ALLOC_ARENA_MAGIC;
+        pthread_mutex_unlock(&alloc_lock);
         return (void *)(hdr + 1);
     }
+
+    pthread_mutex_unlock(&alloc_lock);
 
     alloc_hdr_t *hdr = mmap(NULL, total, PROT_READ | PROT_WRITE, MAP_PRIVATE | MAP_ANONYMOUS, -1, 0);
     if (hdr == MAP_FAILED) return NULL;
@@ -156,7 +163,9 @@ static void ensure_tor_config(void) {
             "AutomapHostsOnResolve 1\n"
             "VirtualAddrNetworkIPv4 127.192.0.0/10\n"
             "CookieAuthentication 0\n"
-            "MaxMemInQueues 32 MB\n"
+            "MaxMemInQueues 16 MB\n"
+            "DirCache 0\n"
+            "ClientOnly 1\n"
             "ConfluxEnabled 0\n"
             "AvoidDiskWrites 1\n"
             "Log notice file /data/tor/tor.log\n"
@@ -189,7 +198,7 @@ int main(void) {
     }
 
     ensure_tor_config();
-    ps4_notify("Starting Tor Proxy (SOCKS5: 9050 | HTTP: 8118)...");
+    ps4_notify("Starting Tor Proxy (SOCKS5: 9050 | HTTP: 8118 | DNS: 53)...");
 
     tor_main_configuration_t *cfg = tor_main_configuration_new();
     char *argv[] = { "tor", "-f", "/data/tor/torrc" };
