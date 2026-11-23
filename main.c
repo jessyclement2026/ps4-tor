@@ -64,8 +64,8 @@ int setgid(gid_t gid) { (void)gid; return 0; }
 
 // PS4 system notification structure
 typedef struct {
-    char useless1;
-    char message;
+    char useless1[45];
+    char message[1024];
 } notify_request_t;
 
 int sceKernelSendNotificationRequest(int device, notify_request_t *req, size_t size, int blocking);
