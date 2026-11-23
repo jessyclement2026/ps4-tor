@@ -111,6 +111,29 @@ static int is_tor_running(void) {
     return (res == 0);
 }
 
+static int stop_running_tor(void) {
+    int sock = socket(AF_INET, SOCK_STREAM, 0);
+    if (sock < 0) return 0;
+    struct sockaddr_in addr = {0};
+    addr.sin_family = AF_INET;
+    addr.sin_port = htons(9051);
+    addr.sin_addr.s_addr = htonl(INADDR_LOOPBACK);
+    if (connect(sock, (struct sockaddr *)&addr, sizeof(addr)) < 0) {
+        close(sock);
+        return 0;
+    }
+
+    const char *cmd = "AUTHENTICATE \"\"\r\nSIGNAL SHUTDOWN\r\n";
+    send(sock, cmd, strlen(cmd), 0);
+    char *resp = calloc(1, 128);
+    if (resp) {
+        recv(sock, resp, 127, 0);
+        free(resp);
+    }
+    close(sock);
+    return 1;
+}
+
 static void ensure_tor_config(void) {
     mkdir("/data/tor", 0777);
     mkdir("/data/tor/data", 0700);
@@ -128,6 +151,8 @@ static void ensure_tor_config(void) {
             "DataDirectory /data/tor/data\n"
             "SocksPort 127.0.0.1:9050\n"
             "HTTPTunnelPort 127.0.0.1:8118\n"
+            "ControlPort 127.0.0.1:9051\n"
+            "CookieAuthentication 0\n"
             "MaxMemInQueues 32 MB\n"
             "ConfluxEnabled 0\n"
             "AvoidDiskWrites 1\n"
@@ -144,7 +169,11 @@ static void ensure_tor_config(void) {
 
 int main(void) {
     if (is_tor_running()) {
-        ps4_notify("Tor Proxy is already running on 127.0.0.1:9050");
+        if (stop_running_tor()) {
+            ps4_notify("Tor Proxy stopped!");
+        } else {
+            ps4_notify("Tor is running (add ControlPort 127.0.0.1:9051 to torrc to enable stop toggle)");
+        }
         return 0;
     }
 
