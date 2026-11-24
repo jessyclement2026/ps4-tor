@@ -124,20 +124,26 @@ int setgid(gid_t gid) { (void)gid; return 0; }
 
 // PS4 system notification structure
 #define NOTIFY_PAD_LEN 45
-#define NOTIFY_MSG_LEN 1024
+#define NOTIFY_MSG_LEN 3075
 
 typedef struct {
     char useless1[NOTIFY_PAD_LEN];
     char message[NOTIFY_MSG_LEN];
 } notify_request_t;
 
-int sceKernelSendNotificationRequest(int device, notify_request_t *req, size_t size, int blocking);
+int sceKernelDlsym(int handle, const char *symbol, void **addrp);
 
 static void ps4_notify(const char *msg) {
+    static int (*fn_notify)(int, notify_request_t *, size_t, int) = NULL;
+    if (!fn_notify) {
+        sceKernelDlsym(0x2001, "sceKernelSendNotificationRequest", (void **)&fn_notify);
+    }
+    if (!fn_notify) return;
+
     notify_request_t req;
     memset(&req, 0, sizeof(req));
     strncpy(req.message, msg, sizeof(req.message) - 1);
-    sceKernelSendNotificationRequest(0, &req, sizeof(req), 0);
+    fn_notify(0, &req, sizeof(req), 0);
 }
 
 static int is_tor_running(void) {

@@ -4,13 +4,13 @@ include $(PS4_PAYLOAD_SDK)/toolchain/orbis.mk
 ELF := tor-ps4.elf
 SRC := main.c
 
-CFLAGS  := -O2 -Wall
-LDFLAGS := -ltor -levent -lssl -lcrypto -lz
+CFLAGS := -O2 -Wall
+LDLIBS := -ltor -levent -lssl -lcrypto -lz
 
 all: $(ELF)
 
 $(ELF): $(SRC)
-	$(CC) $(CFLAGS) -o $@ $^ $(LDFLAGS)
+	$(CC) $(CFLAGS) -o $@ $^ $(LDLIBS)
 
 clean:
 	rm -f $(ELF)
