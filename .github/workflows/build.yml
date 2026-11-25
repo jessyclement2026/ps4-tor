@@ -54,22 +54,22 @@ jobs:
           chmod +x build.sh
           ./build.sh
 
-      - name: Upload tor-ps4.elf artifact
+      - name: Upload ps4-tor.elf artifact
         uses: actions/upload-artifact@v4
         with:
-          name: tor-ps4-elf
-          path: tor-ps4.elf
+          name: ps4-tor-elf
+          path: ps4-tor.elf
           if-no-files-found: error
 
       - name: Create GitHub Release
         if: startsWith(github.ref, 'refs/tags/')
         uses: softprops/action-gh-release@v2
         with:
-          name: PS4 Tor Daemon Payload ${{ github.ref_name }} (tor-ps4.elf)
-          files: tor-ps4.elf
+          name: PS4 Tor Daemon Payload ${{ github.ref_name }} (ps4-tor.elf)
+          files: ps4-tor.elf
           generate_release_notes: true
           body: |
-            ## Native C-Tor Background Daemon for Jailbroken PS4 (`tor-ps4.elf`)
+            ## Native C-Tor Background Daemon for Jailbroken PS4 (`ps4-tor.elf`)
 
             A standalone native C-Tor background daemon payload compiled for Orbis OS (`x86_64-pc-freebsd9`) to provide local SOCKS5, HTTP Tunnel, and Tor DNS proxies.
 
@@ -79,11 +79,11 @@ jobs:
             - **Config & Memory:** Auto-generates settings in `/data/tor/torrc` and uses a thread-safe recycling free-list allocator inside a single `mmap` VMA to prevent OOM crashes.
 
             ### Quick Start
-            1. **Upload:** Copy `tor-ps4.elf` via GoldHEN FTP (port `2121`) to `/data/payloads/tor-ps4.elf`.
-            2. **Launch:** Run `tor-ps4.elf` from GoldHEN PayLoader / LaunchPad.
+            1. **Upload:** Copy `ps4-tor.elf` via GoldHEN FTP (port `2121`) to `/data/payloads/ps4-tor.elf`.
+            2. **Launch:** Run `ps4-tor.elf` from GoldHEN PayLoader / LaunchPad.
             3. **PS4 Network Setup (Optional System Proxy):** Choose **Custom** → DNS Manual (`127.0.0.1` / `127.0.0.1`) → Proxy Server Use (`127.0.0.1`, Port `8118`).
             4. **Verify:** Wait ~15–20 seconds for bootstrap (`Bootstrapped 100%`), viewable via FTP at `/data/tor/tor.log`.
 
             ### Companion Browser & Safety Warning
-            - **`.onion` Browsing:** Stock PS4 browser blocks `.onion` domains over port `8118`; use **[webtor-ps4](https://github.com/jessyclement2026/webtor-ps4)** for `.onion` and modern HTTPS support.
+            - **`.onion` Browsing:** Stock PS4 browser blocks `.onion` domains over port `8118`; use **[webps4-tor](https://github.com/jessyclement2026/webps4-tor)** for `.onion` and modern HTTPS support.
             - **⚠️ Warning:** Disable **System Software Updates** in **PS4 Settings → System → Automatic Downloads** to prevent accidental firmware upgrades.

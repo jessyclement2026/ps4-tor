@@ -100,7 +100,7 @@ make -j$(nproc) libtor.a
 cp "$(find . -name 'libtor.a' | head -n 1)" "$SYSROOT/lib/"
 cp src/feature/api/tor_api.h "$SYSROOT/include/"
 
-# 6. Build final PS4 Tor payload (tor-ps4.elf)
+# 6. Build final PS4 Tor payload (ps4-tor.elf)
 cd "$WORKDIR"
 make
 

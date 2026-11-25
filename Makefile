@@ -1,7 +1,7 @@
 export PS4_PAYLOAD_SDK ?= ps4-payload-sdk
 include $(PS4_PAYLOAD_SDK)/toolchain/orbis.mk
 
-ELF := tor-ps4.elf
+ELF := ps4-tor.elf
 SRC := main.c
 
 CFLAGS := -O2 -Wall

@@ -111,7 +111,7 @@ Official releases for this project are also published on the Brewology PS4 Homeb
 
 ## Support / Donations
 
-If **ps4-stream** helped you stream your PS4 with ultra-low latency and you'd like to support further PS4 homebrew development (such as PS4 audio streaming support and testing on more firmwares):
+If **ps4-tor** helped you stream your PS4 with ultra-low latency and you'd like to support further PS4 homebrew development (such as PS4 audio streaming support and testing on more firmwares):
 
 - **Bitcoin (BTC):** `bc1qt9wxjtq6th3nxmkwg5pa8jhskrn29z6zd7nvum`
 
