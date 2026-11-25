@@ -85,5 +85,5 @@ jobs:
             4. **Verify:** Wait ~15–20 seconds for bootstrap (`Bootstrapped 100%`), viewable via FTP at `/data/tor/tor.log`.
 
             ### Companion Browser & Safety Warning
-            - **`.onion` Browsing:** Stock PS4 browser blocks `.onion` domains over port `8118`; use **[webps4-tor](https://github.com/jessyclement2026/webps4-tor)** for `.onion` and modern HTTPS support.
+            - **`.onion` Browsing:** Stock PS4 browser blocks `.onion` domains over port `8118`; use **[webps4-tor](https://github.com/jessyclement2026/ps4-webtor)** for `.onion` and modern HTTPS support.
             - **⚠️ Warning:** Disable **System Software Updates** in **PS4 Settings → System → Automatic Downloads** to prevent accidental firmware upgrades.
